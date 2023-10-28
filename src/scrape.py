@@ -129,7 +129,7 @@ async def main():
         await asyncio.gather(*map(download, await scrape_main(main_url, session)))
         
         if len(os.listdir(tmp_folder)) == 0:
-            os.rmdir(tmp_folder)
+            os.removedirs(tmp_folder)
 
 asyncio.run(main())
 
