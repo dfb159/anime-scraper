@@ -6,6 +6,8 @@ import asyncio
 import re
 import os
 
+BASE_URL = "https://gogoanime.dev"
+
 def soupify(func):
 
     async def wrapper(url: str, session: aiohttp.ClientSession):
@@ -104,10 +106,8 @@ def scrape_stream(soup: BeautifulSoup) -> str:
     return match.group(1)
 
 async def main():
-    base_url = "https://gogoanime.dev"
-
     async with aiohttp.ClientSession() as session:
-        animename, main_url = await get_anime_info(base_url, session)
+        animename, main_url = await get_anime_info(BASE_URL, session)
         tmp_folder = f"out/{animename}/tmp"
         os.makedirs(tmp_folder, exist_ok = True)
 
@@ -120,7 +120,7 @@ async def main():
             else:
                 print(f"Downloading: {animename}_episode_{episode_no}")
 
-            stream_url = await scrape_episode(base_url + episode_url, session)
+            stream_url = await scrape_episode(BASE_URL + episode_url, session)
             outer_playlist_url = await scrape_stream(stream_url, session)
             playlist_url = await scrape_playlist(outer_playlist_url, session)
 
