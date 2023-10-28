@@ -53,7 +53,9 @@ async def download_episode(url, animename: str, episode_name: str):
         .output(f"out/{animename}/{episode_name}.mp4", format="mp4")
     )
     await semaphore.acquire()
+    print(f"Starting: {episode_name} ::: {url}")
     await process.execute()
+    print(f"Finished: {episode_name}")
     semaphore.release()
 
 @soupify
@@ -102,16 +104,22 @@ async def main():
 
     async with aiohttp.ClientSession() as session:
         animename, main_url = await get_anime_info(base_url, session)
-        os.makedirs("out", exist_ok = True)
-        os.makedirs(f"out/{animename}", exist_ok = True)
+        os.makedirs(f"out/{animename}/tmp", exist_ok = True)
 
         async def download(episode_url: str):
-            stream_url = await scrape_episode(base_url + episode_url, session)
             episode_no = get_episode_name(episode_url)
+            filename = f"{animename}_episode_{episode_no}"
+            if (os.path.exists(f"out/{animename}/{filename}.mp4")):
+                print(f"Skipping: {animename}_episode_{episode_no}")
+                return
+            else:
+                print(f"Downloading: {animename}_episode_{episode_no}")
+
+            stream_url = await scrape_episode(base_url + episode_url, session)
             outer_playlist_url = await scrape_stream(stream_url, session)
             playlist_url = await scrape_playlist(outer_playlist_url, session)
-            await download_episode(playlist_url, animename, f"{animename}_episode_{episode_no}")
-            print(f"Downloaded: {animename}_episode_{episode_no} ::: {playlist_url}")
+
+            await download_episode(playlist_url, animename, filename)
 
         await asyncio.gather(*map(download, await scrape_main(main_url, session)))
 
