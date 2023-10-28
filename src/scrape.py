@@ -57,9 +57,8 @@ async def download_episode(url, animename: str, episode_name: str):
     await semaphore.acquire()
     print(f"Starting: {episode_name} ::: {url}")
     if os.path.exists(tmp_path): os.remove(tmp_path)
-    #await process.execute()
-    await asyncio.sleep(2)
-    #os.rename(tmp_path, output_path)
+    await process.execute()
+    os.rename(tmp_path, output_path)
     print(f"Finished: {episode_name}")
     semaphore.release()
 
