@@ -110,10 +110,10 @@ async def main():
             episode_no = get_episode_name(episode_url)
             outer_playlist_url = await scrape_stream(stream_url, session)
             playlist_url = await scrape_playlist(outer_playlist_url, session)
-            #await download_episode(playlist_url, animename, f"{animename}_episode_{episode_no}")
+            await download_episode(playlist_url, animename, f"{animename}_episode_{episode_no}")
             print(f"Downloaded: {animename}_episode_{episode_no} ::: {playlist_url}")
 
-        #await asyncio.gather(*map(download, await scrape_main(main_url, session)))
+        await asyncio.gather(*map(download, await scrape_main(main_url, session)))
 
 asyncio.run(main())
 
