@@ -56,9 +56,10 @@ async def download_episode(url, animename: str, episode_name: str):
     )
     await semaphore.acquire()
     print(f"Starting: {episode_name} ::: {url}")
-    os.remove(tmp_path)
-    await process.execute()
-    os.rename(tmp_path, output_path)
+    if os.path.exists(tmp_path): os.remove(tmp_path)
+    #await process.execute()
+    await asyncio.sleep(2)
+    #os.rename(tmp_path, output_path)
     print(f"Finished: {episode_name}")
     semaphore.release()
 
@@ -108,7 +109,8 @@ async def main():
 
     async with aiohttp.ClientSession() as session:
         animename, main_url = await get_anime_info(base_url, session)
-        os.makedirs(f"out/{animename}/tmp", exist_ok = True)
+        tmp_folder = f"out/{animename}/tmp"
+        os.makedirs(tmp_folder, exist_ok = True)
 
         async def download(episode_url: str):
             episode_no = get_episode_name(episode_url)
@@ -126,6 +128,9 @@ async def main():
             await download_episode(playlist_url, animename, filename)
 
         await asyncio.gather(*map(download, await scrape_main(main_url, session)))
+        
+        if len(os.listdir(tmp_folder)) == 0:
+            os.rmdir(tmp_folder)
 
 asyncio.run(main())
 
