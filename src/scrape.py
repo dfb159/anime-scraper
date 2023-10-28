@@ -47,14 +47,18 @@ def get_episode_name(episode_url: str) -> str:
 semaphore = asyncio.Semaphore(4)
 
 async def download_episode(url, animename: str, episode_name: str):
+    tmp_path = f"out/{animename}/tmp/{episode_name}.mp4"
+    output_path = f"out/{animename}/{episode_name}.mp4"
     process = (
         FFmpeg()
         .input(url)
-        .output(f"out/{animename}/{episode_name}.mp4", format="mp4")
+        .output(tmp_path, format="mp4")
     )
     await semaphore.acquire()
     print(f"Starting: {episode_name} ::: {url}")
+    os.remove(tmp_path)
     await process.execute()
+    os.rename(tmp_path, output_path)
     print(f"Finished: {episode_name}")
     semaphore.release()
 
