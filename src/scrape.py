@@ -134,6 +134,7 @@ async def main():
 
             await download_episode(playlist_url, animename, filename, FORMAT)
 
+        print()
         await asyncio.gather(*map(download, await scrape_main(main_url, session)))
         
         if len(os.listdir(tmp_folder)) == 0:
