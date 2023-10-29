@@ -5,8 +5,11 @@ from ffmpeg.asyncio import FFmpeg
 import asyncio
 import re
 import os
+from typing import Generator
 
 BASE_URL = "https://gogoanime.dev"
+FORMAT = "mp4"
+DOWNLOAD_THREADS = 20
 
 def soupify(func):
 
@@ -46,15 +49,15 @@ async def get_anime_info(base_url: str, session: aiohttp.ClientSession):
 def get_episode_name(episode_url: str) -> str:
     return episode_url.split("episode-")[1] # CHECK: Is this always the case
 
-semaphore = asyncio.Semaphore(4)
+semaphore = asyncio.Semaphore(DOWNLOAD_THREADS)
 
-async def download_episode(url, animename: str, episode_name: str):
-    tmp_path = f"out/{animename}/tmp/{episode_name}.mp4"
-    output_path = f"out/{animename}/{episode_name}.mp4"
+async def download_episode(url, animename: str, episode_name: str, format: str):
+    tmp_path = f"out/{animename}/tmp/{episode_name}.{format}"
+    output_path = f"out/{animename}/{episode_name}.{format}"
     process = (
         FFmpeg()
         .input(url)
-        .output(tmp_path, format="mp4")
+        .output(tmp_path, format=format, codec="copy")
     )
     await semaphore.acquire()
     print(f"Starting: {episode_name} ::: {url}")
@@ -65,7 +68,7 @@ async def download_episode(url, animename: str, episode_name: str):
     semaphore.release()
 
 @soupify
-def scrape_search(soup: BeautifulSoup):
+def scrape_search(soup: BeautifulSoup) -> Generator[tuple[str, str], None, None]:
     search_results = (
         soup
         .find(id="wrapper_bg")
@@ -83,13 +86,13 @@ def scrape_search(soup: BeautifulSoup):
         yield a.text, a_link
 
 @soupify
-def scrape_main(soup: BeautifulSoup):
+def scrape_main(soup: BeautifulSoup) -> Generator[str, None, None]:
     for li in soup.find(id="episode_related").find("div").find_all("li"):
         a = li.find("a")
         yield a.attrs["href"]
 
 @soupify
-def scrape_episode(soup: BeautifulSoup):
+def scrape_episode(soup: BeautifulSoup) -> str:
     element = soup.find("iframe")
     return element.attrs["src"]
 
@@ -114,7 +117,7 @@ async def main():
         async def download(episode_url: str):
             episode_no = get_episode_name(episode_url)
             filename = f"{animename}_episode_{episode_no}"
-            if (os.path.exists(f"out/{animename}/{filename}.mp4")):
+            if (os.path.exists(f"out/{animename}/{filename}.{FORMAT}")):
                 print(f"Skipping: {animename}_episode_{episode_no}")
                 return
             else:
@@ -124,13 +127,14 @@ async def main():
             outer_playlist_url = await scrape_stream(stream_url, session)
             playlist_url = await scrape_playlist(outer_playlist_url, session)
 
-            await download_episode(playlist_url, animename, filename)
+            await download_episode(playlist_url, animename, filename, FORMAT)
 
         await asyncio.gather(*map(download, await scrape_main(main_url, session)))
         
         if len(os.listdir(tmp_folder)) == 0:
             os.removedirs(tmp_folder)
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
 
 print("PROGRAM END")
