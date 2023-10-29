@@ -11,6 +11,7 @@ import sys
 BASE_URL = "https://gogoanime.dev"
 FORMAT = "mp4"
 DOWNLOAD_THREADS = 20
+SIMULATE = False
 
 def soupify(func):
 
@@ -23,6 +24,10 @@ def soupify(func):
     return wrapper
 
 async def get_anime_info(base_url: str, session: aiohttp.ClientSession):
+    if "/category/" in base_url:
+        name = input(f"Enter save name: ")
+        return name, base_url
+    
     print(f"Searching on {base_url}")
     animeinput = input("Search for an anime: ")
     animename = animeinput.replace(" ", "_")
@@ -33,7 +38,7 @@ async def get_anime_info(base_url: str, session: aiohttp.ClientSession):
     print("Anime found:")
     animelist =  list(await scrape_search(search_url, session))
     for i, (name, url) in enumerate(animelist):
-        print(f" {i+1:2d}: {name}")
+        print(f" {i+1:2d}: {name} :: {url}")
     input_number = input("Enter number of anime to download: ")
     input_number = int(input_number) - 1
 
@@ -128,11 +133,11 @@ async def main():
             else:
                 print(f"Downloading: {animename}_episode_{episode_no}")
 
-            stream_url = await scrape_episode(BASE_URL + episode_url, session)
-            outer_playlist_url = await scrape_stream(stream_url, session)
-            playlist_url = await scrape_playlist(outer_playlist_url, session)
-
-            await download_episode(playlist_url, animename, filename, FORMAT)
+            if not SIMULATE:
+                stream_url = await scrape_episode(BASE_URL + episode_url, session)
+                outer_playlist_url = await scrape_stream(stream_url, session)
+                playlist_url = await scrape_playlist(outer_playlist_url, session)
+                await download_episode(playlist_url, animename, filename, FORMAT)
 
         print()
         await asyncio.gather(*map(download, await scrape_main(main_url, session)))
@@ -148,12 +153,14 @@ if __name__ == "__main__":
             print(f"Wrong argument format '{arg}'. Use for example 'format=mpeg'.")
             exit(1)
         cmd, value = splitted
+        cmd = cmd.lower()
 
         if cmd in ["threads", "n"]: DOWNLOAD_THREADS = int(value)
         elif cmd in ["url", "base"]: BASE_URL = value
         elif cmd in ["format", "f"]: FORMAT = value
+        elif cmd in ["simulate", "s"]: SIMULATE = False if value.lower() in ["0", "false", "no", "n", "f"] else True
         else:
-            print(f"Unknown argument name '{cmd}'. Only 'threads', 'url' and 'format' are valid arguments.")
+            print(f"Unknown argument name '{cmd}'. Only 'threads', 'url', 'format', 'simulate' are valid arguments.")
             exit(1)
 
     asyncio.run(main())
