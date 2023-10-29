@@ -56,8 +56,6 @@ async def get_anime_info(session: aiohttp.ClientSession):
 def get_episode_name(episode_url: str) -> str:
     return episode_url.split("episode-")[1] # CHECK: Is this always the case
 
-semaphore = asyncio.Semaphore(DOWNLOAD_THREADS)
-
 async def download_episode(url, animename: str, episode_name: str):
     tmp_path = f"out/{animename}/tmp/{episode_name}.{FORMAT}"
     output_path = f"out/{animename}/{episode_name}.{FORMAT}"
@@ -66,7 +64,6 @@ async def download_episode(url, animename: str, episode_name: str):
         .input(url)
         .output(tmp_path, format=FORMAT, codec="copy")
     )
-    await semaphore.acquire()
     print(f"Starting: {episode_name} ::: {url}")
     if os.path.exists(tmp_path): os.remove(tmp_path)
     try:
@@ -76,7 +73,6 @@ async def download_episode(url, animename: str, episode_name: str):
         raise
     os.rename(tmp_path, output_path)
     print(f"Finished: {episode_name}")
-    semaphore.release()
 
 @soupify
 def scrape_search(soup: BeautifulSoup) -> Generator[tuple[str, str], None, None]:
@@ -98,9 +94,10 @@ def scrape_search(soup: BeautifulSoup) -> Generator[tuple[str, str], None, None]
 
 @soupify
 def scrape_main(soup: BeautifulSoup) -> Generator[str, None, None]:
-    for li in soup.find(id="episode_related").find("div").find_all("li"):
-        a = li.find("a")
-        yield a.attrs["href"]
+    for div in soup.find(id="episode_related").find_all("div"):
+        for li in reversed(div.find_all("li")):
+            a = li.find("a")
+            yield a.attrs["href"]
 
 @soupify
 def scrape_episode(soup: BeautifulSoup) -> str:
@@ -125,6 +122,9 @@ async def main():
         tmp_folder = f"out/{animename}/tmp"
         os.makedirs(tmp_folder, exist_ok = True)
 
+        print()
+        semaphore = asyncio.Semaphore(DOWNLOAD_THREADS) 
+        
         async def download(episode_url: str):
             episode_no = get_episode_name(episode_url)
             filename = f"{animename}_episode_{episode_no}"
@@ -135,12 +135,13 @@ async def main():
                 print(f"Downloading: {animename}_episode_{episode_no}")
 
             if not SIMULATE:
+                await semaphore.acquire()
                 stream_url = await scrape_episode(BASE_URL + episode_url, session)
                 outer_playlist_url = await scrape_stream(stream_url, session)
                 playlist_url = await scrape_playlist(outer_playlist_url, session)
                 await download_episode(playlist_url, animename, filename)
+                semaphore.release()
 
-        print()
         await asyncio.gather(*map(download, await scrape_main(main_url, session)))
         
         if len(os.listdir(tmp_folder)) == 0:
