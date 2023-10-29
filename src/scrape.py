@@ -9,8 +9,9 @@ from typing import Generator
 import sys
 
 BASE_URL = "https://gogoanime.dev"
+FULL_URL = None
 FORMAT = "mp4"
-DOWNLOAD_THREADS = 20
+DOWNLOAD_THREADS = 10
 SIMULATE = False
 
 def soupify(func):
@@ -23,30 +24,30 @@ def soupify(func):
     
     return wrapper
 
-async def get_anime_info(base_url: str, session: aiohttp.ClientSession):
-    if "/category/" in base_url:
+async def get_anime_info(session: aiohttp.ClientSession):
+    if FULL_URL:
         name = input(f"Enter save name: ")
-        return name, base_url
+        return name, FULL_URL
     
-    print(f"Searching on {base_url}")
+    print(f"Searching on {BASE_URL}")
     animeinput = input("Search for an anime: ")
     animename = animeinput.replace(" ", "_")
     animesearch = animeinput.replace(" ", "+")
-    search_url = f"{base_url}/search.html?keyword={animesearch}"
+    search_url = f"{BASE_URL}/search.html?keyword={animesearch}"
 
     print()
     print("Anime found:")
     animelist =  list(await scrape_search(search_url, session))
-    for i, (name, url) in enumerate(animelist):
+    for i, (name, _) in enumerate(animelist):
         print(f" {i+1:2d}: {name}")
     input_number = input("Enter number of anime to download: ")
     input_number = int(input_number) - 1
 
     name, url = animelist[input_number]
-    anime_url = base_url + url
+    anime_url = BASE_URL + url
 
     print()
-    print(f"Selected anime: {name}")
+    print(f"Selected anime: {name} :: {anime_url}")
     rename = input(f"Enter save name ('{animename}'): ")
     if rename != "":
         animename = rename
@@ -57,13 +58,13 @@ def get_episode_name(episode_url: str) -> str:
 
 semaphore = asyncio.Semaphore(DOWNLOAD_THREADS)
 
-async def download_episode(url, animename: str, episode_name: str, format: str):
-    tmp_path = f"out/{animename}/tmp/{episode_name}.{format}"
-    output_path = f"out/{animename}/{episode_name}.{format}"
+async def download_episode(url, animename: str, episode_name: str):
+    tmp_path = f"out/{animename}/tmp/{episode_name}.{FORMAT}"
+    output_path = f"out/{animename}/{episode_name}.{FORMAT}"
     process = (
         FFmpeg()
         .input(url)
-        .output(tmp_path, format=format, codec="copy")
+        .output(tmp_path, format=FORMAT, codec="copy")
     )
     await semaphore.acquire()
     print(f"Starting: {episode_name} ::: {url}")
@@ -120,7 +121,7 @@ def scrape_stream(soup: BeautifulSoup) -> str:
 
 async def main():
     async with aiohttp.ClientSession() as session:
-        animename, main_url = await get_anime_info(BASE_URL, session)
+        animename, main_url = await get_anime_info(session)
         tmp_folder = f"out/{animename}/tmp"
         os.makedirs(tmp_folder, exist_ok = True)
 
@@ -137,7 +138,7 @@ async def main():
                 stream_url = await scrape_episode(BASE_URL + episode_url, session)
                 outer_playlist_url = await scrape_stream(stream_url, session)
                 playlist_url = await scrape_playlist(outer_playlist_url, session)
-                await download_episode(playlist_url, animename, filename, FORMAT)
+                await download_episode(playlist_url, animename, filename)
 
         print()
         await asyncio.gather(*map(download, await scrape_main(main_url, session)))
@@ -156,7 +157,10 @@ if __name__ == "__main__":
         cmd = cmd.lower()
 
         if cmd in ["threads", "n"]: DOWNLOAD_THREADS = int(value)
-        elif cmd in ["url", "base"]: BASE_URL = value
+        elif cmd in ["url", "base"]:
+            m = re.match(r"(https:\/\/gogoanime.\w+)./", value)
+            BASE_URL = m.group[1]
+            FULL_URL = value if "/category/" in value else None
         elif cmd in ["format", "f"]: FORMAT = value
         elif cmd in ["simulate", "s"]: SIMULATE = False if value.lower() in ["0", "false", "no", "n", "f"] else True
         else:
