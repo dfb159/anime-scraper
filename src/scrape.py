@@ -38,7 +38,7 @@ async def get_anime_info(base_url: str, session: aiohttp.ClientSession):
     print("Anime found:")
     animelist =  list(await scrape_search(search_url, session))
     for i, (name, url) in enumerate(animelist):
-        print(f" {i+1:2d}: {name} :: {url}")
+        print(f" {i+1:2d}: {name}")
     input_number = input("Enter number of anime to download: ")
     input_number = int(input_number) - 1
 
