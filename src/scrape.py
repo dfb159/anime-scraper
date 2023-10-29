@@ -6,6 +6,7 @@ import asyncio
 import re
 import os
 from typing import Generator
+import sys
 
 BASE_URL = "https://gogoanime.dev"
 FORMAT = "mp4"
@@ -62,7 +63,11 @@ async def download_episode(url, animename: str, episode_name: str, format: str):
     await semaphore.acquire()
     print(f"Starting: {episode_name} ::: {url}")
     if os.path.exists(tmp_path): os.remove(tmp_path)
-    await process.execute()
+    try:
+        await process.execute()
+    except:
+        process.terminate()
+        raise
     os.rename(tmp_path, output_path)
     print(f"Finished: {episode_name}")
     semaphore.release()
@@ -135,6 +140,20 @@ async def main():
             os.removedirs(tmp_folder)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    for arg in sys.argv[1:]:
 
-print("PROGRAM END")
+        splitted = arg.split("=")
+        if len(splitted) != 2: 
+            print(f"Wrong argument format '{arg}'. Use for example 'format=mpeg'.")
+            exit(1)
+        cmd, value = splitted
+
+        if cmd in ["threads", "n"]: DOWNLOAD_THREADS = int(value)
+        elif cmd in ["url", "base"]: BASE_URL = value
+        elif cmd in ["format", "f"]: FORMAT = value
+        else:
+            print(f"Unknown argument name '{cmd}'. Only 'threads', 'url' and 'format' are valid arguments.")
+            exit(1)
+
+    asyncio.run(main())
+    print("PROGRAM END")
